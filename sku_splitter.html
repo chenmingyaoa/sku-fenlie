@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>父SKU清洗工具</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="sku-page-shell">
+      <section class="sku-hero">
+        <div class="sku-hero-copy">
+          <p class="sku-kicker">Excel Parent SKU Splitter</p>
+          <h1>父SKU清洗工具</h1>
+          <p class="sku-hero-text">
+            上传利润 Excel 后，系统会自动处理 <code>*父SKU</code> / <code>父SKU</code> 列，并在原列右侧新增一列写入处理后的 SKU。
+            例如原值 <code>C0-T25070203</code> 右边会新增 <code>T25070203</code>，而 <code>Y24032206-UK</code> 会保持不变。
+          </p>
+        </div>
+        <div class="sku-rule-card">
+          <h2>当前规则</h2>
+          <ul class="sku-rule-list">
+            <li>保留以字母开头、后面跟一串数字的核心 SKU 片段。</li>
+            <li>如果后缀属于 SKU 本体，例如 <code>-UK</code>、<code>-C</code>、<code>-R</code>、<code>-2</code>，则一起保留。</li>
+            <li>如果前面混有前缀或噪音字符，会自动裁掉，只保留核心部分。</li>
+          </ul>
+          <a class="secondary-btn" href="/link-analysis">打开原有链接分析工具</a>
+        </div>
+      </section>
+
+      <section class="sku-workspace">
+        <form
+          class="sku-upload-panel"
+          method="post"
+          action="/sku-splitter"
+          enctype="multipart/form-data"
+          id="sku-splitter-form"
+        >
+          <div class="panel-block">
+            <h2>上传文件</h2>
+            <label class="field">
+              <span>利润文件</span>
+              <input type="file" name="source_file" id="source-file" accept=".xlsx,.csv" required />
+            </label>
+            <div class="sku-file-note" id="selected-file-name">支持 `.xlsx` 和 `.csv`，推荐直接上传原始 Excel。</div>
+          </div>
+
+          <div class="panel-block">
+            <h2>预览设置</h2>
+            <label class="field">
+              <span>预览行数</span>
+              <input type="number" min="20" max="300" step="10" name="preview_limit" value="{{ form.preview_limit }}" />
+            </label>
+            <p class="helper-text">下载结果时会处理整份文件，预览只影响页面上显示多少行。</p>
+          </div>
+
+          <div class="panel-block">
+            <h2>示例</h2>
+            <div class="sku-example-list">
+              <div class="sku-example-item"><code>C0-T25070203</code><span>T25070203</span></div>
+              <div class="sku-example-item"><code>Y24032206-UK</code><span>Y24032206-UK</span></div>
+              <div class="sku-example-item"><code>C01T26021602</code><span>T26021602</span></div>
+              <div class="sku-example-item"><code>Kt-Y24032206-UK</code><span>Y24032206-UK</span></div>
+            </div>
+          </div>
+
+          <div class="action-bar">
+            <div class="action-hint">上传后会直接生成预览，并提供可下载的新 Excel。</div>
+            <button class="primary-btn" type="submit" id="sku-submit-btn">开始处理</button>
+          </div>
+        </form>
+
+        <section class="sku-result-panel">
+          {% if error %}
+            <div class="alert error">{{ error }}</div>
+          {% endif %}
+
+          {% if summary %}
+            <div class="summary-header">
+              <div>
+                <p class="sku-kicker">处理完成</p>
+                <h2>共扫描 {{ summary.total_rows }} 条父SKU，修改 {{ summary.changed_rows }} 条</h2>
+                <p class="meta-line">
+                  {% if source_filename %}源文件：{{ source_filename }}{% endif %}
+                  {% if generated_at %} · 生成时间：{{ generated_at }}{% endif %}
+                </p>
+              </div>
+              {% if export_token %}
+                <div class="sku-action-group">
+                  <button
+                    class="primary-btn sku-download-btn"
+                    type="button"
+                    id="save-to-downloads-btn"
+                    data-save-url="/sku-splitter/save/{{ export_token }}"
+                  >
+                    保存到下载目录
+                  </button>
+                  <a class="secondary-btn" href="/sku-splitter/export/{{ export_token }}">浏览器下载</a>
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="sku-save-status" id="save-status">
+              {% if saved_file_path %}
+                已保存到：<code>{{ saved_file_path }}</code>
+              {% else %}
+                当前浏览器内如果无法直接下载，请点击“保存到下载目录”。
+              {% endif %}
+            </div>
+
+            <div class="stats-grid sku-stats-grid">
+              <article class="stat-card">
+                <span>命中工作表</span>
+                <strong>{{ summary.matched_sheets }}</strong>
+              </article>
+              <article class="stat-card">
+                <span>已修改</span>
+                <strong>{{ summary.changed_rows }}</strong>
+              </article>
+              <article class="stat-card">
+                <span>保持原值</span>
+                <strong>{{ summary.unchanged_rows }}</strong>
+              </article>
+              <article class="stat-card">
+                <span>预览上限</span>
+                <strong>{{ summary.preview_limit }}</strong>
+              </article>
+            </div>
+
+            <div class="rule-panel">
+              <h3>预览说明</h3>
+              <p class="helper-text">
+                下面展示的是前 {{ summary.preview_limit }} 条非空父SKU记录；导出的 Excel 会保留原始父SKU列，并在它右侧新增“处理后SKU”列。
+              </p>
+            </div>
+
+            <div class="table-shell">
+              <table class="result-table sku-preview-table">
+                <thead>
+                  <tr>
+                    <th>工作表</th>
+                    <th>Excel行号</th>
+                    <th>原始父SKU</th>
+                    <th>右侧新列值</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in preview_rows %}
+                    <tr>
+                      <td>{{ row.sheet_name }}</td>
+                      <td>{{ row.row_number }}</td>
+                      <td><code>{{ row.original_value }}</code></td>
+                      <td><code>{{ row.processed_value }}</code></td>
+                      <td>
+                        {% if row.changed %}
+                          <span class="sku-badge changed">已修改</span>
+                        {% else %}
+                          <span class="sku-badge same">保持原值</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="sku-empty-state">
+              <h2>先上传利润文件开始处理</h2>
+              <p>工具会自动查找 <code>*父SKU</code> 或 <code>父SKU</code> 列，保留原列不变，并在右边新增一列写入处理后的 SKU。</p>
+            </div>
+          {% endif %}
+        </section>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='sku_splitter.js') }}"></script>
+  </body>
+</html>
