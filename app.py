@@ -1,7 +1,6 @@
+import os
 import secrets
 from datetime import datetime
-import os
-from pathlib import Path
 from urllib.parse import quote
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -92,18 +91,6 @@ def build_download_headers(filename: str) -> dict:
     }
 
 
-def get_default_downloads_dir() -> Path:
-    return Path.home() / "Downloads"
-
-
-def save_cached_sku_export(cached: dict) -> Path:
-    downloads_dir = get_default_downloads_dir()
-    downloads_dir.mkdir(parents=True, exist_ok=True)
-    output_path = downloads_dir / cached["filename"]
-    output_path.write_bytes(workbook_to_xlsx_bytes(cached["sheets"]))
-    return output_path
-
-
 def render_link_analysis_page(
     form=None,
     filter_options=None,
@@ -131,7 +118,6 @@ def render_sku_splitter_page(
     export_token=None,
     generated_at=None,
     source_filename=None,
-    saved_file_path=None,
 ):
     return render_template(
         "sku_splitter.html",
@@ -142,7 +128,6 @@ def render_sku_splitter_page(
         export_token=export_token,
         generated_at=generated_at,
         source_filename=source_filename,
-        saved_file_path=saved_file_path,
     )
 
 
@@ -300,78 +285,9 @@ def export_sku_splitter(token: str):
     if not cached:
         return Response("导出记录已失效，请重新处理文件。", status=404, content_type="text/plain; charset=utf-8")
 
-    if request.args.get("download") != "1":
-        saved_path = save_cached_sku_export(cached)
-        html = f"""<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>文件已保存</title>
-    <style>
-      body {{
-        margin: 0;
-        font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-        background: #f6f1e7;
-        color: #24180b;
-      }}
-      main {{
-        max-width: 760px;
-        margin: 48px auto;
-        padding: 32px;
-        background: #fffdf8;
-        border: 1px solid rgba(74, 55, 26, 0.12);
-        border-radius: 24px;
-        box-shadow: 0 18px 48px rgba(63, 37, 12, 0.12);
-      }}
-      h1 {{ margin-top: 0; }}
-      p {{ line-height: 1.7; }}
-      code {{
-        background: rgba(36, 24, 11, 0.06);
-        padding: 2px 6px;
-        border-radius: 6px;
-        word-break: break-all;
-      }}
-      a {{
-        display: inline-block;
-        margin-top: 18px;
-        color: #8d3c12;
-        text-decoration: none;
-        font-weight: 600;
-      }}
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>文件已保存到下载目录</h1>
-      <p>由于当前应用内浏览器不支持直接下载，系统已经帮你把处理结果保存到本地：</p>
-      <p><code>{saved_path}</code></p>
-      <a href="/sku-splitter">返回处理页面</a>
-    </main>
-  </body>
-</html>"""
-        return Response(html, content_type="text/html; charset=utf-8")
-
     workbook_bytes = workbook_to_xlsx_bytes(cached["sheets"])
     filename = cached["filename"]
     return Response(workbook_bytes, headers=build_download_headers(filename))
-
-
-@app.route("/sku-splitter/save/<token>", methods=["POST"])
-def save_sku_splitter_to_downloads(token: str):
-    cached = SKU_EXPORT_CACHE.get(token)
-    if not cached:
-        return jsonify({"error": "导出记录已失效，请重新处理文件。"}), 404
-
-    output_path = save_cached_sku_export(cached)
-
-    return jsonify(
-        {
-            "ok": True,
-            "saved_path": str(output_path),
-            "filename": cached["filename"],
-        }
-    )
 
 
 if __name__ == "__main__":
