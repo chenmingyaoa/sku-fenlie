@@ -90,22 +90,18 @@
                   <button
                     class="primary-btn sku-download-btn"
                     type="button"
-                    id="save-to-downloads-btn"
-                    data-save-url="/sku-splitter/save/{{ export_token }}"
+                    id="download-result-btn"
+                    data-export-url="/sku-splitter/export/{{ export_token }}"
                   >
-                    保存到下载目录
+                    下载到当前设备
                   </button>
-                  <a class="secondary-btn" href="/sku-splitter/export/{{ export_token }}">浏览器下载</a>
+                  <a class="secondary-btn" href="/sku-splitter/export/{{ export_token }}">直接打开下载链接</a>
                 </div>
               {% endif %}
             </div>
 
             <div class="sku-save-status" id="save-status">
-              {% if saved_file_path %}
-                已保存到：<code>{{ saved_file_path }}</code>
-              {% else %}
-                当前浏览器内如果无法直接下载，请点击“保存到下载目录”。
-              {% endif %}
+              当前结果会下载到你正在使用的这台设备，而不是服务器目录。
             </div>
 
             <div class="stats-grid sku-stats-grid">
